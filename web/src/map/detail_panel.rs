@@ -1103,8 +1103,8 @@ fn controls_icon() -> impl IntoView {
     view! {
         <svg class="icon" viewBox="0 0 14 14" aria-hidden="true">
             <path d="M2 4.5 H12 M2 9.5 H12" />
-            <circle cx="5" cy="4.5" r="1.4" fill="currentColor" stroke="none" />
-            <circle cx="9" cy="9.5" r="1.4" fill="currentColor" stroke="none" />
+            <circle cx="5" cy="4.5" r="1.6" fill="currentColor" stroke="none" />
+            <circle cx="9" cy="9.5" r="1.6" fill="currentColor" stroke="none" />
         </svg>
     }
 }
