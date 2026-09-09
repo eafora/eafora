@@ -1098,12 +1098,13 @@ fn dispatch_left_surface_inset(_inset: f64) {}
 
 /// Arrows toward opposite corners, and toward each other to collapse.
 /// Sliders, for the panel of controls this swaps to: two rails, each with a knob, which is what it holds.
+/// The knobs carry their own fill and no stroke, against the outline the other glyphs are drawn with.
 fn controls_icon() -> impl IntoView {
     view! {
         <svg class="icon" viewBox="0 0 14 14" aria-hidden="true">
-            <path d="M2 5 H12 M2 10 H12" />
-            <circle cx="5" cy="5" r="1.6" />
-            <circle cx="9" cy="10" r="1.6" />
+            <path d="M2 4.5 H12 M2 9.5 H12" />
+            <circle cx="5" cy="4.5" r="1.4" fill="currentColor" stroke="none" />
+            <circle cx="9" cy="9.5" r="1.4" fill="currentColor" stroke="none" />
         </svg>
     }
 }

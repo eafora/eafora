@@ -66,8 +66,23 @@
         top: var(--space-md);
     }
 
+    // Beside the expand control rather than under it, so the two occupy one band instead of two.
     .detail-panel-swap {
-        top: calc(var(--space-md) + var(--size-button-icon) + var(--space-xs));
+        top: var(--space-md);
+        right: calc(var(--space-md) + var(--size-button-icon) + var(--space-xs));
+    }
+
+    // The region's name shares that band, so it clears both controls rather than the one it was written for.
+    .top-panels > .detail-panel .detail-panel-region {
+        padding-right: calc(var(--size-button-icon) * 2 + var(--space-xs) + var(--space-sm));
+    }
+
+    /* A label is shorter than the control that sits beside it, so the row takes the control's height. Without
+       it the control overhangs the row and lands on the picker below. */
+    .top-panels > .controls .controls-statistic > .controls-label {
+        display: flex;
+        align-items: center;
+        min-height: var(--size-button-icon);
     }
 
     /* Full width here, so the dock leaves nothing beside it. Fixed rather than absolute because the wrapper is

@@ -74,7 +74,7 @@ pub fn Controls() -> impl IntoView {
                         {figure_icon()}
                     </button>
                 </div>
-                <label class="controls-field">
+                <label class="controls-field controls-statistic">
                     <span class="controls-label">{t!(i18n, statistic.picker_label)}</span>
                     <select
                         class="controls-picker"
