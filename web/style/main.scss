@@ -4,9 +4,11 @@
 @use "layout";
 @use "map";
 @use "components/panel";
-@use "components/top-panels";
 @use "components/detail-panel";
 @use "components/controls";
+/* After the two components it gathers: it overrides them inside a media query, and a media query adds
+   no specificity, so a rule declared later would win instead. */
+@use "components/top-panels";
 @use "components/legend";
 @use "components/button";
 @use "components/tag";

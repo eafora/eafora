@@ -5,12 +5,20 @@ use leptos::prelude::*;
 use shared::canonical::{DataSourceKind, SourceAttribution};
 
 use crate::map::canvas::{GlobalView, LegendView, MapCanvas, SelectionView, ViewControls};
-use crate::map::controls::{ChromeDensity, Controls};
+use crate::map::controls::Controls;
 use crate::map::detail_panel::{DetailSurface, RegionDetailPanel};
 use crate::map::escape::{self, DismissableSurfaces};
 use crate::map::legend::Legend;
 use crate::map::live_banner::LiveBanner;
 use crate::map::settings::{SettingsModal, SettingsSurface};
+
+/// Which of the map's two top panels holds the slot they share once the viewport is too narrow for both.
+/// Above that width they sit side by side and this is not consulted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TopSurface {
+    Figure,
+    Controls,
+}
 
 #[component]
 pub fn MapView() -> impl IntoView {
@@ -39,8 +47,8 @@ pub fn MapView() -> impl IntoView {
     let settings_surface: RwSignal<SettingsSurface> = RwSignal::new(SettingsSurface::Closed);
     provide_context(settings_surface);
 
-    let chrome_density: RwSignal<ChromeDensity> = RwSignal::new(ChromeDensity::Full);
-    provide_context(chrome_density);
+    let top_surface: RwSignal<TopSurface> = RwSignal::new(TopSurface::Figure);
+    provide_context(top_surface);
 
     escape::dismiss_on_escape(DismissableSurfaces {
         settings: settings_surface,
@@ -50,11 +58,11 @@ pub fn MapView() -> impl IntoView {
     view! {
         <main id="map-view">
             <MapCanvas />
-            /* One sheet below the stacking breakpoint, two separately positioned panels above it. The wrapper
-               generates no box at the wider widths, so it changes nothing there. */
+            /* One slot below the breakpoint, holding whichever panel `top_surface` names; two separately
+               positioned panels above it, where the wrapper generates no box and changes nothing. */
             <div
                 class="panel top-panels"
-                class:is-compact=move || chrome_density.get() == ChromeDensity::Compact
+                class:shows-controls=move || top_surface.get() == TopSurface::Controls
             >
                 <RegionDetailPanel />
                 <Controls />

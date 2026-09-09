@@ -22,10 +22,15 @@
     color: var(--color-accent-active);
 }
 
-// A glyph has no reading direction wanting extra side room, so an icon-only button is square.
+/* A glyph has no reading direction wanting extra side room, so an icon-only button is square. Its size is
+   declared rather than left to fall out of the padding, because a control placed relative to another one
+   needs to know it. */
 .button-icon {
-    padding: var(--space-xs);
-    line-height: 0;
+    width: var(--size-button-icon);
+    height: var(--size-button-icon);
+    padding: 0;
+    display: grid;
+    place-items: center;
 }
 
 .button .icon {

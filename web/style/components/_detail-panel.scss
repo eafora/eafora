@@ -6,6 +6,12 @@
     width: 20rem; // approx. 320px
 }
 
+/* As `.controls-swap`: shown only by `_top-panels.scss`, below the breakpoint where the two panels share a
+   slot. */
+.detail-panel-swap {
+    display: none;
+}
+
 .detail-panel-expand {
     position: absolute;
     top: var(--space-md);

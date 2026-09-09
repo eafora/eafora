@@ -213,8 +213,8 @@
     border-bottom: var(--border-active);
 }
 
-/* The density toggle exists only for the stacked layout; above the breakpoint both panels are shown in full
-   and there is nothing to compact. `_top-panels.scss` shows it. */
-.controls-density {
+/* The swap control exists only for the narrow layout, where this panel and the figure share one slot. Above
+   the breakpoint both are shown and there is nothing to swap; `_top-panels.scss` is what shows it. */
+.controls-swap {
     display: none;
 }

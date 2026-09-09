@@ -1,6 +1,6 @@
 @use "../tokens" as tokens;
 
-/* The two panels at the top of the map, above the breakpoint at which they stack.
+/* The two panels at the top of the map, above the breakpoint at which they start sharing one slot.
 
    The wrapper generates no box here, so each panel positions itself against `#map-view` and paints its own
    sheet exactly as it would with no wrapper around it. Its own `panel` chrome goes unpainted for the same
@@ -10,16 +10,20 @@
 }
 
 @media (max-width: tokens.$breakpoint-stacked-chrome) {
-    /* Side by side the two panels leave no map between them at this width, so they become one sheet: the
-       wrapper takes the chrome and its children give theirs up. */
+    /* Side by side the two panels leave no map between them at this width, so they take turns in one sheet:
+       the wrapper takes the chrome and whichever panel is showing gives its own up. */
     .top-panels {
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-md);
+        display: block;
         position: absolute;
         top: var(--space-chrome-inset);
         left: var(--space-chrome-inset);
         right: var(--space-chrome-inset);
+    }
+
+    /* Nothing to show is not a sheet. Both children render conditionally, so with no figure and no controls
+       the wrapper would otherwise paint an empty bordered box over the map. */
+    .top-panels:not(:has(> *)) {
+        display: none;
     }
 
     /* Named rather than reached through `> .panel`, because the expanded dock is also a panel in this wrapper
@@ -33,28 +37,42 @@
         padding: 0;
     }
 
-    // Two things in one sheet, so a hairline separates them.
+    // The figure holds the slot until its swap control hands it over.
     .top-panels > .controls {
-        border-top: var(--border-rule);
-        padding-top: var(--space-md);
-    }
-
-    .controls-density {
-        display: flex;
-        justify-content: flex-end;
-    }
-
-    /* Compacted, the sheet keeps the scrubber and nothing else: the statistic picker goes, the year's own
-       label goes because the value under the thumb already reads it, and so does the figure's source line. */
-    .top-panels.is-compact .controls-statistic,
-    .top-panels.is-compact .controls-scrubber-field > .controls-label,
-    .top-panels.is-compact .detail-panel-source {
         display: none;
     }
 
-    /* Full width here, so the dock leaves nothing beside it. Fixed rather than absolute because the stacked
-       wrapper is a positioned ancestor and the dock's insets are meant for the viewport; the map fills the
-       viewport and does not scroll, so the two coincide. */
+    .top-panels.shows-controls > .controls {
+        display: flex;
+    }
+
+    /* Conditioned on there being controls to swap to: with no data they render nothing, and hiding the figure
+       for them would leave an empty sheet. */
+    .top-panels.shows-controls:has(> .controls) > .detail-panel {
+        display: none;
+    }
+
+    /* Each panel's swap control, out of flow so it adds no height, and anchored to the sheet's top so it holds
+       still whatever the panel beneath it does. The figure's sits under its expand control; the controls panel
+       has no second control, so its own takes the corner. */
+    .controls-swap,
+    .detail-panel-swap {
+        display: block;
+        position: absolute;
+        right: var(--space-md);
+    }
+
+    .controls-swap {
+        top: var(--space-md);
+    }
+
+    .detail-panel-swap {
+        top: calc(var(--space-md) + var(--size-button-icon) + var(--space-xs));
+    }
+
+    /* Full width here, so the dock leaves nothing beside it. Fixed rather than absolute because the wrapper is
+       a positioned ancestor and the dock's insets are meant for the viewport; the map fills the viewport and
+       does not scroll, so the two coincide. */
     .region-dock {
         position: fixed;
         right: var(--space-dock-inset);
@@ -62,9 +80,9 @@
     }
 
     /* With the dock up the wrapper holds only it, so the sheet gives way rather than floating an empty box
-       over the dock, as the legend already gives way. */
+       over the dock, as the legend already gives way. Last, because the rule showing the controls carries the
+       same specificity. */
     .top-panels:has(> .region-dock) {
-        display: block;
         background: none;
         border: none;
         padding: 0;

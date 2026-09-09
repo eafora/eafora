@@ -12,6 +12,7 @@ use crate::map::canvas::{
     self, CellView, GlobalView, RankView, RegionDetail, SelectionView, SeriesPointView, SourceCellView,
 };
 use crate::map::labels;
+use crate::map::map::TopSurface;
 use crate::map::scroll_thumb::{self, ScrollThumbState};
 
 /// Births per woman at which a generation replaces itself. Drawn as the line a fertility series is read
@@ -71,6 +72,7 @@ pub fn RegionDetailPanel() -> impl IntoView {
     let global: RwSignal<Option<GlobalView>> = expect_context();
     let surface: RwSignal<DetailSurface> = expect_context();
     let attribution: RwSignal<BTreeMap<DataSourceKind, SourceAttribution>> = expect_context();
+    let top_surface: RwSignal<TopSurface> = expect_context();
     let i18n = use_i18n();
 
     let figure: Memo<Option<ActiveFigure>> = Memo::new(move |_| active_figure(i18n, selection.get(), global.get()));
@@ -83,7 +85,7 @@ pub fn RegionDetailPanel() -> impl IntoView {
        means rebuilding the chart's elements on every scrub tick. */
     view! {
         <Show when=move || surface.get() == DetailSurface::Summary && figure.with(Option::is_some)>
-            {summary_panel(i18n, figure, surface, expanded_by_keyboard)}
+            {summary_panel(i18n, figure, surface, top_surface, expanded_by_keyboard)}
         </Show>
         <Show when=move || surface.get() == DetailSurface::Expanded && figure.with(Option::is_some)>
             {detail_dock(i18n, figure, surface, attribution, expanded_by_keyboard)}
@@ -155,6 +157,7 @@ fn summary_panel(
     i18n: I18nContext<Locale>,
     figure: Memo<Option<ActiveFigure>>,
     surface: RwSignal<DetailSurface>,
+    top_surface: RwSignal<TopSurface>,
     expanded_by_keyboard: RwSignal<bool>,
 ) -> impl IntoView {
     view! {
@@ -170,6 +173,18 @@ fn summary_panel(
             >
                 {expand_icon()}
             </button>
+            /* Reachable only below the breakpoint, where this panel and the controls share one slot. Above it
+               both are shown and there is nothing to swap. */
+            <div class="detail-panel-swap">
+                <button
+                    class="button button-icon"
+                    type="button"
+                    aria-label=t_string!(i18n, detail.show_controls)
+                    on:click=move |_| top_surface.set(TopSurface::Controls)
+                >
+                    {controls_icon()}
+                </button>
+            </div>
             <p class="detail-panel-region">{figure_text(figure, |figure| figure.label.clone())}</p>
             <p class="detail-panel-statistic">{figure_heading(figure, i18n)}</p>
             {move || figure.with(|figure| {
@@ -1082,6 +1097,17 @@ fn dispatch_left_surface_inset(inset: f64) {
 fn dispatch_left_surface_inset(_inset: f64) {}
 
 /// Arrows toward opposite corners, and toward each other to collapse.
+/// Sliders, for the panel of controls this swaps to: two rails, each with a knob, which is what it holds.
+fn controls_icon() -> impl IntoView {
+    view! {
+        <svg class="icon" viewBox="0 0 14 14" aria-hidden="true">
+            <path d="M2 5 H12 M2 10 H12" />
+            <circle cx="5" cy="5" r="1.6" />
+            <circle cx="9" cy="10" r="1.6" />
+        </svg>
+    }
+}
+
 fn expand_icon() -> impl IntoView {
     view! {
         <svg class="icon" viewBox="0 0 14 14" aria-hidden="true">

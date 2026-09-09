@@ -1,8 +1,7 @@
 {
   "controls": {
     "loading": "Loading data…",
-    "collapse": "Collapse to the year alone.",
-    "expand": "Expand to the full controls."
+    "show_figure": "Show the figures."
   },
   "map": {
     "unsupported": "This browser is missing features Eafora requires: WebGPU or WebGL2 graphics, and Origin Private File System storage.",
@@ -33,7 +32,8 @@
     "about": "About this statistic",
     "rank_ordinal_lowest_of": "lowest of",
     "rank_lowest_of": "Lowest of",
-    "rank_highest_of": "Highest of"
+    "rank_highest_of": "Highest of",
+    "show_controls": "Show the controls."
   },
   "statistic": {
     "tfr": "Total fertility rate",
