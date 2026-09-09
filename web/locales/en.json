@@ -1,6 +1,8 @@
 {
   "controls": {
-    "loading": "Loading data…"
+    "loading": "Loading data…",
+    "collapse": "Collapse to the year alone.",
+    "expand": "Expand to the full controls."
   },
   "map": {
     "unsupported": "This browser is missing features Eafora requires: WebGPU or WebGL2 graphics, and Origin Private File System storage.",

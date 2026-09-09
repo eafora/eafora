@@ -1,0 +1,76 @@
+@use "../tokens" as tokens;
+
+/* The two panels at the top of the map, above the breakpoint at which they stack.
+
+   The wrapper generates no box here, so each panel positions itself against `#map-view` and paints its own
+   sheet exactly as it would with no wrapper around it. Its own `panel` chrome goes unpainted for the same
+   reason, which is what lets one element be the sheet below the breakpoint and nothing above it. */
+.top-panels {
+    display: contents;
+}
+
+@media (max-width: tokens.$breakpoint-stacked-chrome) {
+    /* Side by side the two panels leave no map between them at this width, so they become one sheet: the
+       wrapper takes the chrome and its children give theirs up. */
+    .top-panels {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-md);
+        position: absolute;
+        top: var(--space-chrome-inset);
+        left: var(--space-chrome-inset);
+        right: var(--space-chrome-inset);
+    }
+
+    /* Named rather than reached through `> .panel`, because the expanded dock is also a panel in this wrapper
+       and keeps both its chrome and its own positioning. */
+    .top-panels > .detail-panel,
+    .top-panels > .controls {
+        position: static;
+        width: auto;
+        background: none;
+        border: none;
+        padding: 0;
+    }
+
+    // Two things in one sheet, so a hairline separates them.
+    .top-panels > .controls {
+        border-top: var(--border-rule);
+        padding-top: var(--space-md);
+    }
+
+    .controls-density {
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    /* Compacted, the sheet keeps the scrubber and nothing else: the statistic picker goes, the year's own
+       label goes because the value under the thumb already reads it, and so does the figure's source line. */
+    .top-panels.is-compact .controls-statistic,
+    .top-panels.is-compact .controls-scrubber-field > .controls-label,
+    .top-panels.is-compact .detail-panel-source {
+        display: none;
+    }
+
+    /* Full width here, so the dock leaves nothing beside it. Fixed rather than absolute because the stacked
+       wrapper is a positioned ancestor and the dock's insets are meant for the viewport; the map fills the
+       viewport and does not scroll, so the two coincide. */
+    .region-dock {
+        position: fixed;
+        right: var(--space-dock-inset);
+        width: auto;
+    }
+
+    /* With the dock up the wrapper holds only it, so the sheet gives way rather than floating an empty box
+       over the dock, as the legend already gives way. */
+    .top-panels:has(> .region-dock) {
+        display: block;
+        background: none;
+        border: none;
+        padding: 0;
+    }
+
+    .top-panels:has(> .region-dock) > .controls {
+        display: none;
+    }
+}

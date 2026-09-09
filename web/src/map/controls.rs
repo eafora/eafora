@@ -11,9 +11,27 @@ use crate::map::labels;
 /// its own `aria-label` instead. One controls panel exists, so a fixed id is unambiguous.
 const YEAR_INPUT_ID: &str = "controls-year-input";
 
+/// Whether the map's top chrome shows everything or has been compacted to the year alone. Read only below
+/// the width at which the two top panels stack, since above it there is room for both in full.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChromeDensity {
+    Full,
+    Compact,
+}
+
+impl ChromeDensity {
+    fn toggled(self) -> ChromeDensity {
+        match self {
+            ChromeDensity::Full => ChromeDensity::Compact,
+            ChromeDensity::Compact => ChromeDensity::Full,
+        }
+    }
+}
+
 #[component]
 pub fn Controls() -> impl IntoView {
     let view_controls: RwSignal<Option<ViewControls>> = expect_context();
+    let chrome_density: RwSignal<ChromeDensity> = expect_context();
     let i18n = use_i18n();
     let grabbing: RwSignal<bool> = RwSignal::new(false);
 
@@ -60,7 +78,25 @@ pub fn Controls() -> impl IntoView {
     view! {
         {move || has_controls.get().then(|| view! {
             <aside class="panel controls">
-                <label class="controls-field">
+                /* Only reachable below the stacking breakpoint, where the row it sits in is shown. Above it
+                   the two panels have room in full and there is nothing to compact. */
+                <div class="controls-density">
+                    <button
+                        class="button button-icon"
+                        type="button"
+                        aria-label=move || match chrome_density.get() {
+                            ChromeDensity::Full => t_string!(i18n, controls.collapse).to_string(),
+                            ChromeDensity::Compact => t_string!(i18n, controls.expand).to_string(),
+                        }
+                        on:click=move |_| chrome_density.update(|density| *density = density.toggled())
+                    >
+                        {move || match chrome_density.get() {
+                            ChromeDensity::Full => chevron_up_icon().into_any(),
+                            ChromeDensity::Compact => chevron_down_icon().into_any(),
+                        }}
+                    </button>
+                </div>
+                <label class="controls-field controls-statistic">
                     <span class="controls-label">{t!(i18n, statistic.picker_label)}</span>
                     <select
                         class="controls-picker"
@@ -85,7 +121,7 @@ pub fn Controls() -> impl IntoView {
                     </select>
                 </label>
                 {move || has_period_range.get().then(|| view! {
-                    <div class="controls-field">
+                    <div class="controls-field controls-scrubber-field">
                         <label class="controls-label" for=YEAR_INPUT_ID>
                             {move || active_statistic.get().map(|statistic| labels::period_axis_label(i18n, statistic))}
                         </label>
@@ -239,6 +275,23 @@ fn overwrite_year_field(event: &leptos::ev::Event, year: i32) {
 
 #[cfg(not(feature = "hydrate"))] // no DOM to write to
 fn overwrite_year_field(_event: &leptos::ev::Event, _year: i32) {}
+
+/// The chevron points the way the panel will move: up to compact it, down to open it out again.
+fn chevron_up_icon() -> impl IntoView {
+    view! {
+        <svg class="icon" viewBox="0 0 14 14" aria-hidden="true">
+            <path d="M3 9 L7 5 L11 9" />
+        </svg>
+    }
+}
+
+fn chevron_down_icon() -> impl IntoView {
+    view! {
+        <svg class="icon" viewBox="0 0 14 14" aria-hidden="true">
+            <path d="M3 5 L7 9 L11 5" />
+        </svg>
+    }
+}
 
 #[cfg(test)]
 mod tests {

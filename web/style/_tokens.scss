@@ -34,3 +34,9 @@
     --radius-default:        0;
     --radius-input:          1px;
 }
+
+/* The one width the interface changes shape at: below it the map's two top panels stack into a single sheet.
+   A Sass variable rather than a custom property, because a media query condition cannot read a custom
+   property. Set just above the width at which the two panels would touch, so they stack before they collide
+   rather than after. */
+$breakpoint-stacked-chrome: 48rem; // approx. 768px

@@ -212,3 +212,9 @@
     outline: none;
     border-bottom: var(--border-active);
 }
+
+/* The density toggle exists only for the stacked layout; above the breakpoint both panels are shown in full
+   and there is nothing to compact. `_top-panels.scss` shows it. */
+.controls-density {
+    display: none;
+}

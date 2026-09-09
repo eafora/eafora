@@ -5,7 +5,7 @@ use leptos::prelude::*;
 use shared::canonical::{DataSourceKind, SourceAttribution};
 
 use crate::map::canvas::{GlobalView, LegendView, MapCanvas, SelectionView, ViewControls};
-use crate::map::controls::Controls;
+use crate::map::controls::{ChromeDensity, Controls};
 use crate::map::detail_panel::{DetailSurface, RegionDetailPanel};
 use crate::map::escape::{self, DismissableSurfaces};
 use crate::map::legend::Legend;
@@ -39,6 +39,9 @@ pub fn MapView() -> impl IntoView {
     let settings_surface: RwSignal<SettingsSurface> = RwSignal::new(SettingsSurface::Closed);
     provide_context(settings_surface);
 
+    let chrome_density: RwSignal<ChromeDensity> = RwSignal::new(ChromeDensity::Full);
+    provide_context(chrome_density);
+
     escape::dismiss_on_escape(DismissableSurfaces {
         settings: settings_surface,
         detail: detail_surface,
@@ -47,8 +50,15 @@ pub fn MapView() -> impl IntoView {
     view! {
         <main id="map-view">
             <MapCanvas />
-            <RegionDetailPanel />
-            <Controls />
+            /* One sheet below the stacking breakpoint, two separately positioned panels above it. The wrapper
+               generates no box at the wider widths, so it changes nothing there. */
+            <div
+                class="panel top-panels"
+                class:is-compact=move || chrome_density.get() == ChromeDensity::Compact
+            >
+                <RegionDetailPanel />
+                <Controls />
+            </div>
             <Legend />
             <SettingsModal />
             <LiveBanner />
