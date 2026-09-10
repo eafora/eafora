@@ -27,9 +27,7 @@ pub fn parse_discovery_document(bytes: &[u8]) -> Result<DiscoveryDocument, AppEr
 }
 
 
-/// Which repository base a client should trust. `Static` covers both a discovery document that could not be
-/// read and one that names the base already compiled in, so a caller that has already begun fetching against
-/// the static base need not start again.
+/// Which repository base a client should trust.
 pub enum AuthoritativeBase {
     Static,
     Discovered(String),
