@@ -12,12 +12,30 @@
     "source": "Source",
     "world": "Global",
     "status": {
-      "provisional": "Provisional figure, subject to revision.",
-      "preliminary": "Preliminary figure, subject to revision.",
-      "projection": "Projected figure, not an observation.",
-      "imputed": "Imputed figure, not directly reported.",
-      "interpolated": "Interpolated between reported figures.",
-      "estimated": "Estimated figure, not directly reported."
+      "provisional": {
+        "word": "Provisional",
+        "sentence": "Provisional figure, subject to revision."
+      },
+      "preliminary": {
+        "word": "Preliminary",
+        "sentence": "Preliminary figure, subject to revision."
+      },
+      "projection": {
+        "word": "Projected",
+        "sentence": "Projected figure, not an observation."
+      },
+      "imputed": {
+        "word": "Imputed",
+        "sentence": "Imputed figure, not directly reported."
+      },
+      "interpolated": {
+        "word": "Interpolated",
+        "sentence": "Interpolated between reported figures."
+      },
+      "estimated": {
+        "word": "Estimated",
+        "sentence": "Estimated figure, not directly reported."
+      }
     },
     "expand": "Expand to the full detail.",
     "collapse": "Collapse the detail.",

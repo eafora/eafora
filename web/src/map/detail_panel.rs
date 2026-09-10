@@ -204,7 +204,7 @@ fn summary_panel(
 fn summary_figure(i18n: I18nContext<Locale>, figure: &ActiveFigure) -> AnyView {
     let CellView { value, source, data_status } = figure.cell;
     let statistic: StatisticKind = figure.statistic;
-    let status: Option<AnyView> = data_status.and_then(|data_status| status_label(i18n, data_status));
+    let status: Option<String> = data_status.and_then(|data_status| status_word(i18n, data_status));
 
     let Some(value) = value
     else {
@@ -216,12 +216,14 @@ fn summary_figure(i18n: I18nContext<Locale>, figure: &ActiveFigure) -> AnyView {
 
     view! {
         <p class="detail-panel-value numeric">{format_value(statistic, value)}</p>
-        <p class="detail-panel-unit">{labels::statistic_unit(i18n, statistic)}</p>
+        <div class="detail-panel-unit-row">
+            <span class="detail-panel-unit">{labels::statistic_unit(i18n, statistic)}</span>
+            {status.map(|status| view! {
+                <span class="tag">{status}</span>
+            })}
+        </div>
         {source.map(|source| view! {
             <p class="detail-panel-source">{t!(i18n, detail.source)} ": " {source_label(i18n, source)}</p>
-        })}
-        {status.map(|status| view! {
-            <p class="detail-panel-status">{status}</p>
         })}
     }
     .into_any()
@@ -945,7 +947,7 @@ fn source_row(
     is_contested: bool,
     attribution: Option<&SourceAttribution>,
 ) -> AnyView {
-    let status: Option<AnyView> = status_label(i18n, source_cell.data_status);
+    let status: Option<String> = status_text(i18n, source_cell.data_status);
     let is_tagged: bool = source_cell.is_preferred && is_contested;
 
     view! {
@@ -1008,25 +1010,24 @@ fn format_change_or(change: Option<f64>, absent: &str) -> String {
 fn status_text(i18n: I18nContext<Locale>, data_status: DataStatus) -> Option<String> {
     match data_status {
         DataStatus::Final => None,
-        DataStatus::Provisional => Some(t_string!(i18n, detail.status.provisional).to_string()),
-        DataStatus::Preliminary => Some(t_string!(i18n, detail.status.preliminary).to_string()),
-        DataStatus::Projection => Some(t_string!(i18n, detail.status.projection).to_string()),
-        DataStatus::Imputed => Some(t_string!(i18n, detail.status.imputed).to_string()),
-        DataStatus::Interpolated => Some(t_string!(i18n, detail.status.interpolated).to_string()),
-        DataStatus::Estimated => Some(t_string!(i18n, detail.status.estimated).to_string()),
+        DataStatus::Provisional => Some(t_string!(i18n, detail.status.provisional.sentence).to_string()),
+        DataStatus::Preliminary => Some(t_string!(i18n, detail.status.preliminary.sentence).to_string()),
+        DataStatus::Projection => Some(t_string!(i18n, detail.status.projection.sentence).to_string()),
+        DataStatus::Imputed => Some(t_string!(i18n, detail.status.imputed.sentence).to_string()),
+        DataStatus::Interpolated => Some(t_string!(i18n, detail.status.interpolated.sentence).to_string()),
+        DataStatus::Estimated => Some(t_string!(i18n, detail.status.estimated.sentence).to_string()),
     }
 }
 
-/// `None` for a confirmed figure, which qualifies nothing about the value above it.
-fn status_label(i18n: I18nContext<Locale>, data_status: DataStatus) -> Option<AnyView> {
+fn status_word(i18n: I18nContext<Locale>, data_status: DataStatus) -> Option<String> {
     match data_status {
         DataStatus::Final => None,
-        DataStatus::Provisional => Some(t!(i18n, detail.status.provisional).into_any()),
-        DataStatus::Preliminary => Some(t!(i18n, detail.status.preliminary).into_any()),
-        DataStatus::Projection => Some(t!(i18n, detail.status.projection).into_any()),
-        DataStatus::Imputed => Some(t!(i18n, detail.status.imputed).into_any()),
-        DataStatus::Interpolated => Some(t!(i18n, detail.status.interpolated).into_any()),
-        DataStatus::Estimated => Some(t!(i18n, detail.status.estimated).into_any()),
+        DataStatus::Provisional => Some(t_string!(i18n, detail.status.provisional.word).to_string()),
+        DataStatus::Preliminary => Some(t_string!(i18n, detail.status.preliminary.word).to_string()),
+        DataStatus::Projection => Some(t_string!(i18n, detail.status.projection.word).to_string()),
+        DataStatus::Imputed => Some(t_string!(i18n, detail.status.imputed.word).to_string()),
+        DataStatus::Interpolated => Some(t_string!(i18n, detail.status.interpolated.word).to_string()),
+        DataStatus::Estimated => Some(t_string!(i18n, detail.status.estimated.word).to_string()),
     }
 }
 

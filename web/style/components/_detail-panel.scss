@@ -36,26 +36,30 @@
     letter-spacing: -0.01em;
 }
 
+/* Holds a tag's height whether or not a tag is present, so a figure carrying a status does not shift the lines
+   below it. */
+.detail-panel-unit-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
+    min-height: var(--size-tag);
+    margin-top: var(--space-xs);
+}
+
 .detail-panel-unit {
     font-size: 0.6875rem; // approx. 11px
     color: var(--color-ink-muted);
-    margin-top: var(--space-xs);
 }
 
 .detail-panel-no-data {
     color: var(--color-ink-muted);
 }
 
-.detail-panel-source,
-.detail-panel-status {
+.detail-panel-source {
     margin-top: var(--space-sm);
     font-size: 0.6875rem; // approx. 11px
     color: var(--color-ink-muted);
-}
-
-// A status only renders when the figure is not confirmed, so it reads as a qualification of the value above.
-.detail-panel-status {
-    margin-top: var(--space-xs);
 }
 
 /* The expanded detail surface. It floats clear of the viewport's edge, so it reads as one of the sheets

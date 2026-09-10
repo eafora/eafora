@@ -1,7 +1,9 @@
 /* A bordered uppercase word carrying a categorical value. Never a number and never a sentence: the border
    says "category", so a figure in one reads as a label rather than as data. */
 .tag {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    height: var(--size-tag); // so a row can reserve the height a tag will take
     font-size: 0.625rem; // approx. 10px; a tag labels a value, so it sits below the smallest type token
     letter-spacing: 0.06em;
     text-transform: uppercase;
