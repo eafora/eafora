@@ -40,22 +40,21 @@ Independent of 0.1. No FR of its own: it exists so Phase B does not write 562 li
 
 ## Phase A — the app renders
 
-Stacks on 0.1. Needs a simulator runtime installed.
+Stacks on 0.1.
 
-1. Install a simulator runtime and confirm `xcrun simctl list runtimes` reports it. Nothing else in this phase can be verified until it does.
-2. Write `ios/project.yml` for XcodeGen: the app target, the deployment target, the pre-build run-script phases in order (xcframework, embedded-bundle sync, revision injection), the xcframework link, and `Resources/embedded_artifacts` in Copy Bundle Resources. Run `xcodegen generate` and confirm the project opens.
-3. Gitignore `ios/Eafora.xcodeproj/` and `ios/EaforaApp/Resources/embedded_artifacts/`.
-4. Write `ios/setup.sh` per FR-046, and `ios/README.md` with the iOS quickstart.
-5. Write `scripts/build/inject-git-revision.sh`, writing the revision into `Info.plist`, and surface it in the app per FR-043.
-6. Confirm `scripts/build/sync-embedded-bundle.sh` works unchanged against the iOS destination, which the spec claims and which is worth verifying rather than assuming.
-7. Write `EaforaApp/EmbeddedBundle.swift`: locate the bundled artifact root and hand its path to Rust. The parsing stays in Rust; Swift supplies a path.
-8. Write `EaforaApp/Map/MapMTKView.swift` as a `UIViewRepresentable` over `MTKView`, and `MapCoordinator.swift` holding the `draw(in:)` callback.
-9. Attach the surface exactly once, when the `CAMetalLayer` first becomes available, passing the layer and view pointers through the FFI handle. Guard against the repeated-attach path the web client also had to guard.
-10. Implement the event-driven loop: `isPaused = true` plus `setNeedsDisplay()`, scheduled by the same events the web driver schedules on. Read `web/src/map/canvas/driver.rs` for the list rather than inventing one.
-11. Write `EaforaApp/DesignTokens.swift` from `web/style/_tokens.scss`, and `Localizable.xcstrings` with the strings the first screen needs.
-12. Write `EaforaApp/EaforaApp.swift` and `Map/MapView.swift`: launch straight into the map, no splash, per FR-034.
-13. XCTest the surface bridge (reported size matches the layer's drawable size) and the embedded-bundle locator.
-14. Verify first paint on the simulator against `docs/design/stub-mobile.html` frame 00, and confirm an idle app issues no GPU work.
+1. Write `ios/project.yml` for XcodeGen: the app target, the deployment target, the pre-build run-script phases in order (xcframework, embedded-bundle sync, revision injection), the xcframework link, and `Resources/embedded_artifacts` in Copy Bundle Resources. Run `xcodegen generate` and confirm the project opens.
+2. Gitignore `ios/Eafora.xcodeproj/` and `ios/EaforaApp/Resources/embedded_artifacts/`.
+3. Write `ios/setup.sh` per FR-046, and `ios/README.md` with the iOS quickstart.
+4. Write `scripts/build/inject-git-revision.sh`, writing the revision into `Info.plist`, and surface it in the app per FR-043.
+5. Confirm `scripts/build/sync-embedded-bundle.sh` works unchanged against the iOS destination, which the spec claims and which is worth verifying rather than assuming.
+6. Write `EaforaApp/EmbeddedBundle.swift`: locate the bundled artifact root and hand its path to Rust. The parsing stays in Rust; Swift supplies a path.
+7. Write `EaforaApp/Map/MapMTKView.swift` as a `UIViewRepresentable` over `MTKView`, and `MapCoordinator.swift` holding the `draw(in:)` callback.
+8. Attach the surface exactly once, when the `CAMetalLayer` first becomes available, passing the layer and view pointers through the FFI handle. Guard against the repeated-attach path the web client also had to guard.
+9. Implement the event-driven loop: `isPaused = true` plus `setNeedsDisplay()`, scheduled by the same events the web driver schedules on. Read `web/src/map/canvas/driver.rs` for the list rather than inventing one.
+10. Write `EaforaApp/DesignTokens.swift` from `web/style/_tokens.scss`, and `Localizable.xcstrings` with the strings the first screen needs.
+11. Write `EaforaApp/EaforaApp.swift` and `Map/MapView.swift`: launch straight into the map, no splash, per FR-034.
+12. XCTest the surface bridge (reported size matches the layer's drawable size) and the embedded-bundle locator.
+13. Verify first paint on the simulator against `docs/design/stub-mobile.html` frame 00, and confirm an idle app issues no GPU work.
 
 ## Phase B — data over time
 
@@ -71,3 +70,15 @@ Stacks on A and 0.2.
 ## Out of scope here
 
 Phase C (region detail, settings, About, gesture parity) and Phase D (Universal Links, AASA, signing, TestFlight) have no tasks. Phase D additionally cannot get them until the Developer Program enrollment exists, since the signing identity, the AASA `appID`, and the App Store Connect key are inputs to those steps.
+
+## Deviations from the plan, Phase 0.2
+
+- Task 3 planned to move `web/src/live_resolve.rs` whole to `shared/src/artifact/discovery_resolve.rs`. Only the reconciliation was portable, so `AuthoritativeBase` and `authoritative_repository_base` joined the existing `shared/src/artifact/discovery.rs` beside the document they reason about, and no new module was created. `web/src/live_resolve.rs` remains, holding the `include_str!` of the committed discovery document and the compile-time repository base, both of which are the web build's own.
+- The live fan-out was rewritten rather than moved. It used `wasm_bindgen_futures::spawn_local` with a oneshot channel per file, neither of which exists off the browser, and `tokio` is optional in `shared` behind the `render` feature, so `Semaphore` and `join!` were unavailable too. `futures_util` supplies both replacements: `buffer_unordered` bounds the concurrency the semaphore used to, and `future::join` races discovery against the speculative manifest. A hash mismatch now cancels the files still in flight instead of letting every fetch finish first.
+- Task 4 also moved the URL construction. Only `fetch()` itself was browser-specific; `fetch_bytes` and the four URL builders above it were portable, and are now `shared/src/artifact/fetch.rs` over the `HttpFetch` trait. `web/src/client/fetch.rs` holds the one browser function.
+- `evict_all_except` moved off `OpfsArtifactCache` into `evict_stale_versions`, unplanned. It was written entirely against the trait, so leaving it in the web client would have had iOS reimplement it.
+- Tasks 6 and 7 landed in a second PR rather than with tasks 1 through 5, which kept the move reviewable against the web client's own tests before any new implementation joined it.
+- Task 9's unreachable-host case is not tested. Every address answers with a response through the HTTP proxy this repository is developed behind, so a transport failure is not reachable from a test; the arm is covered through a URL that never becomes a request.
+- `shared/src/http.rs` became `shared/src/http/`, splitting the vocabulary into `http_model.rs` so `reqwest_fetch.rs` could sit beside it under a declaration-only `mod.rs`.
+- The filesystem cache rejects `.` and `..` path segments, which the plan did not call for. The browser's file system forbids them structurally and a directory tree does not, so the check restores the parity the trait implies.
+- The filesystem cache reads and writes through `std::fs` inside its async functions. `shared` carries no async runtime of its own, and the trait is async for the browser's sake; the loader runs off the main thread on every platform that uses this implementation.

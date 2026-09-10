@@ -31,6 +31,8 @@ tokio = { workspace = true, optional = true, default-features = false, features 
 render = ["dep:wgpu", "dep:raw-window-handle", "dep:bytemuck", "dep:earcutr", "dep:tokio"]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# the HttpFetch implementation for targets with no browser fetch to borrow.
+reqwest = { workspace = true }
 # rusqlite bundles a C SQLite that needs libc; `serialize` adds Connection::deserialize.
 rusqlite = { workspace = true, features = ["serialize"] }
 # native GPU backends (wasm32 gets webgpu/webgl below).

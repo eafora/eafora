@@ -311,7 +311,7 @@ mod tests {
     use crate::artifact::cache::tests::MockArtifactCache;
     use crate::artifact::{BundleVariant, ManifestEntry};
     use crate::canonical::{LicenseShardClass, StatisticKind};
-    use crate::http::tests::MockHttpFetch;
+    use crate::http::http_model::tests::MockHttpFetch;
 
     use super::*;
 

@@ -34,6 +34,17 @@ impl Response {
     }
 }
 
+/// Reports the body's length rather than its contents, which run to megabytes.
+impl std::fmt::Debug for Response {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("Response")
+            .field("status", &self.status)
+            .field("byte_count", &self.bytes.len())
+            .finish()
+    }
+}
+
 /// The transport the artifact loader reaches the repository through. The returned future is deliberately
 /// not `Send`: some platforms' response handles are not, and one trait serves every platform.
 #[allow(async_fn_in_trait)]

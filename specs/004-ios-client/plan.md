@@ -22,7 +22,7 @@ That inversion is the plan's main content. It replaces the shape of FR-019 throu
 
 **Target platform**: iOS 18+, iPhone first. The simulator is the development target through Phase B; a device needs the enrollment that Phase D waits on.
 
-**Toolchain gaps to close in `setup.sh`**: no iOS simulator runtime is installed (`xcrun simctl list runtimes` is empty), the `aarch64-apple-ios` and `aarch64-apple-ios-sim` Rust targets are absent, and `xcodegen` is not installed. There are zero code-signing identities, confirming no Developer Program enrollment.
+**Toolchain gaps to close in `setup.sh`**: the `aarch64-apple-ios` and `aarch64-apple-ios-sim` Rust targets are absent, and `xcodegen` is not installed. The iOS 26.5 simulator runtime is installed. There are zero code-signing identities, confirming no Developer Program enrollment.
 
 **Testing**: Rust unit tests for everything below the FFI, which is where nearly all logic now sits. XCTest for the Swift surfaces that remain: the `MTKView` bridge, the embedded-bundle locator, and Universal Link routing. No simulator is needed to run the Rust tests, which is why Phase 0 is reviewable today.
 
@@ -166,7 +166,7 @@ Each of these is a hazard the plan cannot close from this machine, listed with w
 - **The UniFFI version and its Swift bindgen invocation.** `uniffi` is not in the local registry cache, so neither the current version nor the `uniffi-bindgen-swift` argument shape could be checked. The spec already flags the per-artifact invocation pattern as possibly shifted. Closing it: add the dependency once approved, then read the installed crate's own documentation rather than trusting the architecture doc.
 - **Whether UniFFI's async support covers the loader's shape.** The loader is `async` and holds a `tokio` `Semaphore` across awaits. Either the FFI exposes blocking calls over an owned `tokio` runtime, or it uses UniFFI's async support. This is the largest open design question in Phase 0.1 and should be settled by reading the installed crate before writing the surface.
 - **The XcodeGen schema.** `xcodegen` is not installed, so `project.yml` cannot be validated. Closing it: install it in Phase A and run `xcodegen generate`.
-- **`MTKView.isPaused` plus `setNeedsDisplay` semantics.** No simulator runtime is installed, so the event-driven loop is unverified. Closing it: install a runtime in Phase A.
+- **`MTKView.isPaused` plus `setNeedsDisplay` semantics.** The event-driven loop is unverified. Closing it: run it on the simulator in Phase A.
 - **Everything in Phase D**, which needs an enrollment that does not exist.
 
 ## Phase 1: design & contracts
@@ -195,11 +195,11 @@ The Swift side then holds: `EaforaApp.swift` (lifecycle, sheets, link routing), 
 
 ## Phasing for PRs
 
-Phase 0.1 and 0.2 are independent of each other and both are off `master`; the rest is a linear stack. Only 0.1 needs a dependency approval, and only 0.1 through B are planned in detail.
+Phase 0.1 and 0.2 are independent of each other and both are off `master`; the rest is a linear stack. Only 0.1 through B are planned in detail.
 
-- **Phase 0.1 — the FFI boundary** (own PR, off `master`). The `ios/ffi` crate, the `uniffi-bindgen-swift` binary, `scripts/build/build-ios-xcframework.sh`, and the `setup.sh` additions for the iOS Rust targets. FR-003, 004, 005, 006, 007, 008, 009, 010, 011. Pure Rust and shell: it builds and reviews with no Xcode project and no simulator. **Blocked on approving the `uniffi` dependency.**
+- **Phase 0.1 — the FFI boundary** (own PR, off `master`). The `ios/ffi` crate, the `uniffi-bindgen-swift` binary, `scripts/build/build-ios-xcframework.sh`, and the `setup.sh` additions for the iOS Rust targets. FR-003, 004, 005, 006, 007, 008, 009, 010, 011. Pure Rust and shell: it builds and reviews with no Xcode project and no simulator.
 - **Phase 0.2 — move the loader into `shared`** (own PR, off `master`). `load.rs`, `live_resolve.rs`, and `version_rank.rs` move into `shared/src/artifact/`, parameterized over `ArtifactCache` and a new `HttpFetch` trait; `shared` gains the `std::fs` cache and the `reqwest` fetch for non-wasm; `web/` is refactored to consume the moved code, with its existing tests as the proof the move was faithful. No FR of its own: it is the prerequisite that stops FR-019 through FR-030 being written twice.
-- **Phase A — the app renders** (stacks on 0.1). `ios/` scaffolding, `project.yml`, the app skeleton, `EmbeddedBundle.swift`, the `MTKView` bridge, and first paint on the simulator. FR-001, 002, 012, 013, 014, 015, 016, 017, 035, 036, 037, 038, 039, 040, 041, 042, 043, 046, 056, 057. Closes P1. Needs a simulator runtime installed first.
+- **Phase A — the app renders** (stacks on 0.1). `ios/` scaffolding, `project.yml`, the app skeleton, `EmbeddedBundle.swift`, the `MTKView` bridge, and first paint on the simulator. FR-001, 002, 012, 013, 014, 015, 016, 017, 035, 036, 037, 038, 039, 040, 041, 042, 043, 046, 056, 057. Closes P1.
 - **Phase B — data over time** (stacks on A and 0.2). Wiring the moved loader to the app: cache directory choice and backup exclusion in Swift, discovery, the speculative fetch, and hot-swap. FR-019, 020, 021, 022, 023, 025, 026, 027, 028, 029, 030, 054, 055. Closes P2 and P3, with the cache-purge scenario as a Rust test per Topic 5.
 - **Phase C — the rest of the surface** (stacks on B). Region detail sheet, settings, About, `DesignTokens.swift` refinement, gesture parity with the web. FR-018, 031, 032, 033. **Sketch only: no task breakdown exists, and writing one is the first step of picking it up.** It depends on nothing outside the repository.
 - **Phase D — distribution** (stacks on C). Universal Links, the AASA worker, code signing, and the TestFlight pipeline. FR-044, 045, 047, 048, 049, 050, 051, 053, 058. **Sketch only, and unplannable in detail until the Developer Program enrollment exists**, because the signing identity, the AASA `appID`, and the App Store Connect key are inputs to those steps rather than outputs of them.
@@ -212,10 +212,14 @@ A phase marked sketch-only is an unplanned phase, not a lighter one.
 
 **eafora**: Corrects the iOS spec against the tree it will be built in and plans the feature through Phase B.
 
-The spec predated the web client and assumed a `core/` crate, flat script paths, and an FFI boundary that would already exist. It now names `shared/`, the real script locations, and the toolchain actually installed: Xcode 26.5 but no simulator runtime, no iOS Rust targets, no `xcodegen`, and no Developer Program enrollment.
+The spec predated the web client and assumed a `core/` crate, flat script paths, and an FFI boundary that would already exist. It now names `shared/`, the real script locations, and the toolchain actually installed: Xcode 26.5 and the iOS 26.5 simulator runtime, but no iOS Rust targets, no `xcodegen`, and no Developer Program enrollment.
 
 The plan's substantive change is to invert where the work happens. The web client's load orchestration, discovery reconciliation, and version ranking are 562 lines of platform-agnostic Rust that merely live under `web/`; the UIKit surface path and the Metal backend already exist in `shared`. So the iOS client moves that logic into `shared` and implements the cache and fetch traits in Rust rather than reimplementing them in Swift, which reshapes FR-019 through FR-030 and leaves the Swift layer holding only the SwiftUI tree, the `MTKView` bridge, and gestures.
 
 ## Post-implementation notes
 
 To be appended per phase, recording deviations from this plan.
+
+### Phase 0.2
+
+Landed across two PRs: the move itself, then the non-wasm cache and fetch. Deviations are recorded in [tasks.md](tasks.md) §Deviations from the plan, Phase 0.2. The consequential ones are that `live_resolve.rs` split rather than moved (only the reconciliation was portable), that the live fan-out was rewritten around `futures_util` because neither `spawn_local` nor `tokio` was available in `shared`, and that the URL construction moved along with the loader.
