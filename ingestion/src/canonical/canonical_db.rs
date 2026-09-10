@@ -1,9 +1,14 @@
-use sqlx::PgExecutor;
+use std::collections::BTreeMap;
 
-use shared::canonical::canonical_model::{Country, DataSource, DataSourceKind, Region, Statistic, Subdivision};
+use sqlx::PgExecutor;
+use uuid::Uuid;
+
+use shared::canonical::canonical_model::{
+    Country, DataSource, DataSourceKind, Region, SourceAttribution, Statistic, Subdivision,
+};
 
 use crate::canonical::canonical_entity::{
-    CountryEntity, DataSourceEntity, RegionEntity, StatisticEntity, SubdivisionEntity,
+    CountryEntity, DataSourceAttributionEntity, DataSourceEntity, RegionEntity, StatisticEntity, SubdivisionEntity,
 };
 use crate::error::AppError;
 
@@ -100,26 +105,28 @@ pub async fn find_subdivision_by_iso_3166_2<'e>(
     Ok(subdivision_entity.map(Subdivision::from))
 }
 
-/// The NUTS revision every seeded code belongs to. More than one would mean the store models two namings of
-/// the same territory at once, which no map layer can draw and no lookup by code alone can disambiguate.
-pub async fn read_nuts_revision<'e>(executor: impl PgExecutor<'e>) -> Result<Option<i32>, AppError> {
-    let nuts_revisions: Vec<i32> = sqlx::query_scalar!(
+/// The NUTS revision each seeded code belongs to. The store holds several at once: a country that has left the
+/// classification keeps the cut it left under, while the rest follow the cut in force.
+pub async fn read_nuts_revision_by_code<'e>(
+    executor: impl PgExecutor<'e>,
+) -> Result<BTreeMap<String, i32>, AppError> {
+    let subdivision_records = sqlx::query!(
         r#"
-        select distinct nuts_revision as "nuts_revision!"
+        select
+            nuts_code as "nuts_code!",
+            nuts_revision as "nuts_revision!"
         from subdivision
-        where nuts_revision is not null
+        where nuts_code is not null
+          and nuts_revision is not null
         "#,
     )
     .fetch_all(executor)
     .await?;
 
-    if nuts_revisions.len() > 1 {
-        return Err(AppError::from(format!(
-            "subdivision holds more than one NUTS revision; [revisions={nuts_revisions:?}]",
-        )));
-    }
-
-    Ok(nuts_revisions.into_iter().next())
+    Ok(subdivision_records
+        .into_iter()
+        .map(|subdivision_record| (subdivision_record.nuts_code, subdivision_record.nuts_revision))
+        .collect())
 }
 
 pub async fn find_statistic_by_code<'e>(
@@ -147,7 +154,7 @@ pub async fn find_data_source_by_kind<'e>(
     let data_source_entity: Option<DataSourceEntity> = sqlx::query_as!(
         DataSourceEntity,
         r#"
-        select id, code, name_en, homepage_url, license_class, license_name, license_url, attribution_text, preference_rank, created, modified
+        select id, code, name_en, license_class, preference_rank, created, modified
         from data_source
         where code = $1
         "#,
@@ -157,4 +164,26 @@ pub async fn find_data_source_by_kind<'e>(
     .await?;
 
     data_source_entity.map(DataSource::try_from).transpose()
+}
+
+/// Every rightsholder a source must credit, in render order. An aggregated boundary source names several:
+/// the association licensing it collectively, plus a national authority whose own licence covers part of it.
+pub async fn read_data_source_attributions<'e>(
+    executor: impl PgExecutor<'e>,
+    data_source_id: Uuid,
+) -> Result<Vec<SourceAttribution>, AppError> {
+    let attribution_entities: Vec<DataSourceAttributionEntity> = sqlx::query_as!(
+        DataSourceAttributionEntity,
+        r#"
+        select attribution_text, license_name, license_url, homepage_url
+        from data_source_attribution
+        where data_source_id = $1
+        order by position asc
+        "#,
+        data_source_id,
+    )
+    .fetch_all(executor)
+    .await?;
+
+    Ok(attribution_entities.into_iter().map(SourceAttribution::from).collect())
 }
