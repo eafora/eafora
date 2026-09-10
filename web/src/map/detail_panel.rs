@@ -216,10 +216,10 @@ fn summary_figure(i18n: I18nContext<Locale>, figure: &ActiveFigure) -> AnyView {
 
     view! {
         <p class="detail-panel-value numeric">{format_value(statistic, value)}</p>
-        <div class="detail-panel-unit-row">
+        <div class="figure-unit-row">
             <span class="detail-panel-unit">{labels::statistic_unit(i18n, statistic)}</span>
             {status.map(|status| view! {
-                <span class="tag">{status}</span>
+                <span class="tag tag-ink">{status}</span>
             })}
         </div>
         {source.map(|source| view! {
@@ -279,14 +279,22 @@ fn detail_dock(
             /* The dock keeps the value's block whether or not there is a value, so scrubbing across a gap in
                coverage does not move everything below it. */
             <p class="region-dock-value numeric">{value_text}</p>
-            <p class="region-dock-unit">
-                {figure_text(figure, move |figure| labels::statistic_unit(i18n, figure.statistic))}
-            </p>
-            <p class="region-dock-status">
-                {figure_text(figure, move |figure| {
-                    figure.cell.data_status.and_then(|status| status_text(i18n, status)).unwrap_or_default()
-                })}
-            </p>
+            <div class="figure-unit-row">
+                <span class="region-dock-unit">
+                    {figure_text(figure, move |figure| labels::statistic_unit(i18n, figure.statistic))}
+                </span>
+                {move || {
+                    let status: Option<String> = figure.with(|figure| {
+                        figure.as_ref()
+                            .and_then(|figure| figure.cell.data_status)
+                            .and_then(|data_status| status_word(i18n, data_status))
+                    });
+
+                    status.map(|status| view! {
+                        <span class="tag tag-ink">{status}</span>
+                    })
+                }}
+            </div>
 
             {context_rows(i18n, figure)}
             {history_section(i18n, figure)}
