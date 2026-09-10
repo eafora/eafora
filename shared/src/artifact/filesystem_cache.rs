@@ -18,10 +18,10 @@ impl FilesystemArtifactCache {
     }
 
     fn file_path(&self, version_label: &str, file_relative_path: &str) -> Result<PathBuf, AppError> {
-        let mut path: PathBuf = self.root.join(sanitized_segment(version_label)?);
+        let mut path: PathBuf = self.root.join(validated_segment(version_label)?);
 
         for segment in file_relative_path.split('/').filter(|segment| !segment.is_empty()) {
-            path.push(sanitized_segment(segment)?);
+            path.push(validated_segment(segment)?);
         }
 
         Ok(path)
@@ -105,7 +105,7 @@ impl ArtifactCache for FilesystemArtifactCache {
     }
 
     async fn delete_version(&self, version_label: &str) -> Result<(), AppError> {
-        let path: PathBuf = self.root.join(sanitized_segment(version_label)?);
+        let path: PathBuf = self.root.join(validated_segment(version_label)?);
 
         let removed: Result<(), std::io::Error> = fs::remove_dir_all(&path);
 
@@ -120,10 +120,11 @@ impl ArtifactCache for FilesystemArtifactCache {
     }
 }
 
-/// A `.`, `..`, or separator segment would reach outside the cache root.
-fn sanitized_segment(segment: &str) -> Result<&str, AppError> {
-    if segment.is_empty() || segment == "." || segment == ".." || segment.contains('\\') {
-        return Err(AppError::from(format!("cache path segment is unsafe; [segment={segment:?}]")));
+/// Every segment must name a child. An empty or `.` segment resolves to the cache root and `..` to above
+/// it, so any of them would have `delete_version` remove a directory the caller did not name.
+fn validated_segment(segment: &str) -> Result<&str, AppError> {
+    if segment.is_empty() || segment == "." || segment == ".." {
+        return Err(AppError::from(format!("cache path segment does not name a child; [segment={segment:?}]")));
     }
 
     Ok(segment)
@@ -221,7 +222,7 @@ mod tests {
             .await
             .unwrap_err();
 
-        assert!(error.to_string().contains("unsafe"));
+        assert!(error.to_string().contains("does not name a child"));
     }
 
     #[tokio::test]
@@ -230,6 +231,18 @@ mod tests {
 
         let error: AppError = cache.put("..", "manifest.json", b"{}").await.unwrap_err();
 
-        assert!(error.to_string().contains("unsafe"));
+        assert!(error.to_string().contains("does not name a child"));
+    }
+
+    /// `.` resolves to the cache root, so accepting it would delete every version rather than one.
+    #[tokio::test]
+    async fn delete_version_rejects_a_label_naming_the_cache_root() {
+        let (_root, cache): (TempDir, FilesystemArtifactCache) = create_cache();
+        cache.put("2026-08-14+macdiarmid", "manifest.json", b"{}").await.unwrap();
+
+        let error: AppError = cache.delete_version(".").await.unwrap_err();
+
+        assert!(error.to_string().contains("does not name a child"));
+        assert!(cache.get("2026-08-14+macdiarmid", "manifest.json").await.unwrap().is_some());
     }
 }
