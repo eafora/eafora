@@ -1,133 +1,20 @@
-use std::sync::Arc;
-
-use shared::artifact::{self, manifest, version_rank, ArtifactCache, AuthoritativeBase, Bundle,
-    CachedVersionRank, DiscoveryDocument, Manifest, ManifestEntry};
-use shared::filesystem;
-use shared::http::{HttpCacheMode, HttpMethod, HttpRequest};
+use shared::artifact::{load, Bundle};
 use shared::license::DistributionContext;
 use shared::AppError;
-use tokio::sync::oneshot;
-use tokio::sync::oneshot::error::RecvError;
-use tokio::sync::oneshot::{Receiver, Sender};
-use tokio::sync::{AcquireError, Semaphore, SemaphorePermit};
 
 use crate::client::cache::OpfsArtifactCache;
-use crate::client::fetch;
+use crate::client::fetch::BrowserFetch;
 use crate::live_resolve;
 
-const EMBEDDED_BASE_URL: &str = "/embedded_artifacts";
-const LIVE_FETCH_PARALLELISM: usize = 6;
-const VERSIONS_KEPT: usize = 2;
+pub use shared::artifact::load::{evict_stale_versions, open_newest_cached_bundle};
 
-/// The repository base the live bundle is fetched from. Its `latest/manifest.json` bytes travel with it
-/// because resolution already fetched them; fetching them again would cost a redundant round trip.
-struct ResolvedRepository {
-    base_url: String,
-    manifest_bytes: Vec<u8>,
-}
+const EMBEDDED_BASE_URL: &str = "/embedded_artifacts";
 
 pub async fn load_embedded_bundle(
     cache: &OpfsArtifactCache,
     distribution_context: DistributionContext,
 ) -> Result<Bundle, AppError> {
-    let manifest_url: String = format!("{EMBEDDED_BASE_URL}/{}", manifest::MANIFEST_FILENAME);
-
-    let manifest_bytes: Vec<u8> = fetch::fetch_bytes(&HttpRequest {
-        method: HttpMethod::Get,
-        url: manifest_url,
-        cache_mode: HttpCacheMode::Reload,
-    })
-    .await?;
-
-    let manifest: Manifest = manifest::parse_manifest(&manifest_bytes)?;
-
-    cache.put(&manifest.version, manifest::MANIFEST_FILENAME, &manifest_bytes).await?;
-
-    for entry in manifest.file_entries() {
-        let file_url: String = format!("{EMBEDDED_BASE_URL}/{}", entry.relative_path);
-
-        let file_bytes: Vec<u8> = fetch::fetch_bytes(&HttpRequest {
-            method: HttpMethod::Get,
-            url: file_url,
-            cache_mode: HttpCacheMode::Default,
-        })
-        .await?;
-
-        filesystem::verify_sha256(&file_bytes, &entry.sha256)?;
-        cache.put(&manifest.version, &entry.relative_path, &file_bytes).await?;
-    }
-
-    Bundle::open(cache, &manifest.version, distribution_context).await
-}
-
-pub async fn open_newest_cached_bundle(
-    cache: &OpfsArtifactCache,
-    distribution_context: DistributionContext,
-) -> Result<Option<Bundle>, AppError> {
-    for version_label in version_labels_newest_first(cache).await? {
-        let opened: Result<Bundle, AppError> =
-            Bundle::open(cache, &version_label, distribution_context).await;
-
-        match opened {
-            Ok(bundle) => return Ok(Some(bundle)),
-            Err(error) => {
-                /* A cached version this build cannot read is useless and re-fetchable, and keeping it would
-                   fail the same way on the next start while holding one of the retained slots. */
-                log::warn!(
-                    "discarding a cached bundle this build cannot open; [version_label={version_label} error={error}]"
-                );
-                cache.delete_version(&version_label).await?;
-            }
-        }
-    }
-
-    Ok(None)
-}
-
-/// Deletes every cached version past the `VERSIONS_KEPT` newest.
-pub async fn evict_stale_versions(cache: &OpfsArtifactCache) -> Result<(), AppError> {
-    let kept_version_labels: Vec<String> =
-        version_labels_newest_first(cache).await?.into_iter().take(VERSIONS_KEPT).collect();
-
-    cache.evict_all_except(&kept_version_labels).await
-}
-
-/// Cached version labels, best first. The rank comes from each version's manifest rather than from
-/// comparing labels: `YYYY-MM-DD+<surname>` orders chronologically only across differing dates, and two
-/// builds sharing a date fall back to comparing arbitrary surnames. A version whose manifest cannot be read
-/// ranks last, so it is opened last and evicted first.
-async fn version_labels_newest_first(cache: &OpfsArtifactCache) -> Result<Vec<String>, AppError> {
-    let version_labels: Vec<String> = cache.list_versions().await?;
-    let mut ranked_labels: Vec<(CachedVersionRank, String)> = Vec::with_capacity(version_labels.len());
-
-    for version_label in version_labels {
-        let manifest: Option<Manifest> = read_cached_manifest(cache, &version_label).await;
-        let rank: CachedVersionRank = version_rank::rank_cached_version(manifest.as_ref());
-
-        ranked_labels.push((rank, version_label));
-    }
-
-    ranked_labels.sort_by(|(left_rank, _), (right_rank, _)| right_rank.cmp(left_rank));
-
-    Ok(ranked_labels.into_iter().map(|(_rank, version_label)| version_label).collect())
-}
-
-/// `None` when the version's manifest is absent or unparseable. A damaged version is unrankable rather
-/// than fatal, so it cannot stop the others from being opened or evicted.
-async fn read_cached_manifest(cache: &OpfsArtifactCache, version_label: &str) -> Option<Manifest> {
-    let manifest_bytes: Option<Vec<u8>> = cache
-        .get(version_label, manifest::MANIFEST_FILENAME)
-        .await
-        .map_err(|error| {
-            log::warn!("reading a cached manifest failed; [version_label={version_label} error={error}]")
-        })
-        .ok()?;
-
-    manifest::parse_manifest(&manifest_bytes?)
-        .map_err(|error| {
-            log::warn!("parsing a cached manifest failed; [version_label={version_label} error={error}]")
-        })
-        .ok()
+    load::load_embedded_bundle(cache, &BrowserFetch, EMBEDDED_BASE_URL, distribution_context).await
 }
 
 pub async fn load_live_bundle(
@@ -135,197 +22,22 @@ pub async fn load_live_bundle(
     static_base: &str,
     distribution_context: DistributionContext,
 ) -> Result<Bundle, AppError> {
-    let resolved_repository: ResolvedRepository = resolve_repository(static_base).await?;
-    let manifest_bytes: Vec<u8> = readable_manifest_bytes(&resolved_repository).await;
-
-    open_fetched_live_bundle(
+    load::load_live_bundle(
         cache,
-        &resolved_repository.base_url,
-        &manifest_bytes,
+        &BrowserFetch,
+        live_resolve::DISCOVERY_PATH,
+        static_base,
         distribution_context,
     )
     .await
-}
-
-/// The repository's manifest when this build can read it, and otherwise the newest manifest published at the
-/// schema version it does read. A pointer that cannot be fetched leaves the resolved bytes in place, so the
-/// version mismatch is what the caller reports.
-async fn readable_manifest_bytes(resolved_repository: &ResolvedRepository) -> Vec<u8> {
-    let fallback_key: Option<String> = manifest::schema_fallback_key(&resolved_repository.manifest_bytes);
-
-    let Some(fallback_key) = fallback_key
-    else {
-        return resolved_repository.manifest_bytes.clone();
-    };
-
-    let fetched: Result<Vec<u8>, AppError> =
-        fetch::fetch_manifest_at_key(&resolved_repository.base_url, &fallback_key).await;
-
-    match fetched {
-        Ok(fallback_bytes) => {
-            log::info!("the repository is at a newer schema version; [pointer={fallback_key}]");
-
-            fallback_bytes
-        }
-        Err(error) => {
-            log::warn!("fetching the schema pointer failed; [pointer={fallback_key} error={error}]");
-
-            resolved_repository.manifest_bytes.clone()
-        }
-    }
-}
-
-/// Reconciles the discovery document against the static base. The static base's manifest is requested
-/// concurrently with discovery, so the common case (discovery agrees with the static base, or discovery is
-/// unavailable) resolves in one round trip; a discovery document naming a different base discards that
-/// response and pays a second.
-async fn resolve_repository(static_base: &str) -> Result<ResolvedRepository, AppError> {
-    let (discovery_bytes_result, speculative_manifest_result): (Result<Vec<u8>, AppError>, Result<Vec<u8>, AppError>) =
-        tokio::join!(
-            fetch::fetch_discovery(live_resolve::DISCOVERY_PATH),
-            fetch::fetch_manifest(static_base),
-        );
-
-    let parsed_discovery: Result<DiscoveryDocument, AppError> = discovery_bytes_result
-        .and_then(|discovery_bytes| artifact::parse_discovery_document(&discovery_bytes))
-        .inspect_err(|error| {
-            log::warn!("discovery unavailable, falling back to the static repository base; [error={error}]")
-        });
-    let authoritative_base: AuthoritativeBase =
-        artifact::authoritative_repository_base(static_base, parsed_discovery);
-
-    match authoritative_base {
-        AuthoritativeBase::Static => {
-            let manifest_bytes: Vec<u8> = speculative_manifest_result?;
-
-            Ok(ResolvedRepository {
-                base_url: static_base.to_string(),
-                manifest_bytes,
-            })
-        }
-        AuthoritativeBase::Discovered(discovered_base) => {
-            let manifest_bytes: Vec<u8> = fetch::fetch_manifest(&discovered_base).await?;
-
-            Ok(ResolvedRepository {
-                base_url: discovered_base,
-                manifest_bytes,
-            })
-        }
-    }
-}
-
-async fn open_fetched_live_bundle(
-    cache: &OpfsArtifactCache,
-    repository_base_url: &str,
-    manifest_bytes: &[u8],
-    distribution_context: DistributionContext,
-) -> Result<Bundle, AppError> {
-    let manifest: Manifest = manifest::parse_manifest(manifest_bytes)?;
-
-    put_live_files(repository_base_url, &manifest).await?;
-
-    cache.put(&manifest.version, manifest::MANIFEST_FILENAME, manifest_bytes).await?;
-
-    Bundle::open(cache, &manifest.version, distribution_context).await
-}
-
-async fn put_live_files(repository_base_url: &str, manifest: &Manifest) -> Result<(), AppError> {
-    let semaphore: Arc<Semaphore> = Arc::new(Semaphore::new(LIVE_FETCH_PARALLELISM));
-    let file_entries: Vec<&ManifestEntry> = manifest.file_entries().collect();
-    let mut result_receivers: Vec<Receiver<Result<(), AppError>>> = Vec::new();
-
-    for entry in file_entries {
-        let (result_sender, result_receiver): (Sender<Result<(), AppError>>, Receiver<Result<(), AppError>>) =
-            oneshot::channel();
-        result_receivers.push(result_receiver);
-
-        let semaphore: Arc<Semaphore> = Arc::clone(&semaphore);
-        let repository_base_url: String = repository_base_url.to_string();
-        let version_label: String = manifest.version.clone();
-        let relative_path: String = entry.relative_path.clone();
-        let sha256: String = entry.sha256.clone();
-
-        wasm_bindgen_futures::spawn_local(async move {
-            let cache: OpfsArtifactCache = OpfsArtifactCache;
-            let result: Result<(), AppError> = fetch_and_cache_artifact_file(
-                &cache,
-                &semaphore,
-                &repository_base_url,
-                &version_label,
-                &relative_path,
-                &sha256,
-            )
-            .await;
-
-            let _: Result<(), Result<(), AppError>> = result_sender.send(result);
-        });
-    }
-
-    for result_receiver in result_receivers {
-        let result: Result<(), AppError> = result_receiver
-            .await
-            .map_err(|error: RecvError| AppError::from(format!("live file fetch dropped; [error={error}]")))?;
-
-        result?;
-    }
-
-    Ok(())
-}
-
-async fn fetch_and_cache_artifact_file(
-    cache: &OpfsArtifactCache,
-    semaphore: &Semaphore,
-    repository_base_url: &str,
-    version_label: &str,
-    relative_path: &str,
-    sha256: &str,
-) -> Result<(), AppError> {
-    if is_already_cached(cache, version_label, relative_path, sha256).await {
-        return Ok(());
-    }
-
-    let _permit: SemaphorePermit<'_> = semaphore
-        .acquire()
-        .await
-        .map_err(|error: AcquireError| AppError::from(format!("live fetch semaphore closed; [error={error}]")))?;
-
-    let file_bytes: Vec<u8> = fetch::fetch_artifact_file(repository_base_url, version_label, relative_path).await?;
-
-    filesystem::verify_sha256(&file_bytes, sha256)?;
-    cache.put(version_label, relative_path, &file_bytes).await?;
-
-    Ok(())
-}
-
-/// Whether the cache already holds this file with the hash the manifest declares. Checked before the
-/// semaphore, since a local read should not queue behind in-flight downloads. A read failure or a hash
-/// mismatch answers false, which re-fetches and so repairs a truncated or corrupted entry.
-async fn is_already_cached(
-    cache: &OpfsArtifactCache,
-    version_label: &str,
-    relative_path: &str,
-    sha256: &str,
-) -> bool {
-    let cached_bytes: Option<Vec<u8>> = cache
-        .get(version_label, relative_path)
-        .await
-        .map_err(|error| {
-            log::warn!("reading a cached artifact file failed; [relative_path={relative_path} error={error}]")
-        })
-        .ok()
-        .flatten();
-
-    let Some(cached_bytes) = cached_bytes else {
-        return false;
-    };
-
-    filesystem::verify_sha256(&cached_bytes, sha256).is_ok()
 }
 
 /// Exercised in the browser: the ordering these cover is a property of real OPFS reads, since the
 /// version list and each manifest come back through `FileSystemDirectoryHandle`.
 #[cfg(test)]
 mod tests {
+    use shared::artifact::{manifest, ArtifactCache};
+
     use super::*;
 
     /// A parseable manifest carrying no files, so a test can seed a version whose only meaningful
@@ -367,7 +79,7 @@ mod tests {
             .await
             .unwrap();
 
-        let ordered_version_labels: Vec<String> = version_labels_newest_first(&cache).await.unwrap();
+        let ordered_version_labels: Vec<String> = load::version_labels_newest_first(&cache).await.unwrap();
 
         let newer_position: usize = ordered_version_labels.iter().position(|label| label == newer_label).unwrap();
         let older_position: usize = ordered_version_labels.iter().position(|label| label == older_label).unwrap();

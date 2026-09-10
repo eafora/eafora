@@ -5792,6 +5792,7 @@ dependencies = [
  "const_format",
  "earcutr 0.5.0",
  "flatgeobuf",
+ "futures-util",
  "geo-types",
  "geozero",
  "log",

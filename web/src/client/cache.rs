@@ -36,22 +36,6 @@ impl OpfsArtifactCache {
 
         Ok(OpfsArtifactCache)
     }
-
-    /// Deletes every cached version outside `kept_version_labels`. Which versions are worth keeping is the
-    /// caller's policy; ordering them requires reading each manifest, which this layer does not parse.
-    pub async fn evict_all_except(&self, kept_version_labels: &[String]) -> Result<(), AppError> {
-        let version_labels: Vec<String> = self.list_versions().await?;
-
-        for version_label in version_labels {
-            if kept_version_labels.contains(&version_label) {
-                continue;
-            }
-
-            self.delete_version(&version_label).await?;
-        }
-
-        Ok(())
-    }
 }
 
 impl ArtifactCache for OpfsArtifactCache {

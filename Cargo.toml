@@ -9,6 +9,9 @@ edition = "2024"
 shared = { path = "shared" }
 ingestion = { path = "ingestion" }
 tokio = { version = "1.52.*", default-features = false }
+# FuturesUnordered, for concurrency without spawning: the artifact cache trait omits a Send bound so the
+# browser can implement it, and a spawned future would need one.
+futures-util = { version = "0.3.*", default-features = false, features = ["alloc"] }
 sqlx = { version = "0.8.*", features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "json", "macros"] }
 reqwest = { version = "0.12.*", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1.0.*", features = ["derive"] }
