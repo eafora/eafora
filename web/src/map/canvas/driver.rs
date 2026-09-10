@@ -744,11 +744,6 @@ pub fn start(canvas: HtmlCanvasElement, signals: DriverSignals) {
     });
 }
 
-/// The bundle first paint draws: the newest cached one, else the embedded starter, else the live repository.
-///
-/// The embedded tree is an optimisation, not a dependency. One that cannot be read (stale against the build's
-/// schema, a digest that does not verify, a partial deploy) defers first paint to the network rather than
-/// ending the session, since the repository may hold a bundle this build reads perfectly well.
 async fn open_first_paint_bundle(
     cache: &OpfsArtifactCache,
     distribution_context: DistributionContext,
