@@ -744,6 +744,37 @@ pub fn start(canvas: HtmlCanvasElement, signals: DriverSignals) {
     });
 }
 
+/// The bundle first paint draws: the newest cached one, else the embedded starter, else the live repository.
+///
+/// The embedded tree is an optimisation, not a dependency. One that cannot be read (stale against the build's
+/// schema, a digest that does not verify, a partial deploy) defers first paint to the network rather than
+/// ending the session, since the repository may hold a bundle this build reads perfectly well.
+async fn open_first_paint_bundle(
+    cache: &OpfsArtifactCache,
+    distribution_context: DistributionContext,
+) -> Result<Bundle, StartupError> {
+    match load::open_newest_cached_bundle(cache, distribution_context).await {
+        Ok(Some(cached)) => return Ok(cached),
+        Ok(None) => {}
+        Err(error) => log::warn!("opening a cached bundle failed, falling back to embedded; [error={error}]"),
+    }
+
+    let embedded: Result<Bundle, AppError> = load::load_embedded_bundle(cache, distribution_context).await;
+    let embedded_error: AppError = match embedded {
+        Ok(embedded) => return Ok(embedded),
+        Err(error) => error,
+    };
+
+    log::warn!("opening the embedded bundle failed, falling back to the repository; [error={embedded_error}]");
+
+    let static_base: String =
+        live_resolve::static_repository_base_url().map_err(StartupError::DataUnavailable)?;
+
+    load::load_live_bundle(cache, &static_base, distribution_context)
+        .await
+        .map_err(StartupError::DataUnavailable)
+}
+
 async fn set_up_driver(canvas: HtmlCanvasElement, signals: DriverSignals) -> Result<(), StartupError> {
     let cache: OpfsArtifactCache = OpfsArtifactCache::create()
         .await
@@ -751,18 +782,7 @@ async fn set_up_driver(canvas: HtmlCanvasElement, signals: DriverSignals) -> Res
 
     let distribution_context: DistributionContext = distribution::resolve_context();
 
-    let bundle: Bundle = match load::open_newest_cached_bundle(&cache, distribution_context).await {
-        Ok(Some(cached)) => cached,
-        Ok(None) => load::load_embedded_bundle(&cache, distribution_context)
-            .await
-            .map_err(StartupError::DataUnavailable)?,
-        Err(error) => {
-            log::warn!("opening a cached bundle failed, falling back to embedded; [error={error}]");
-            load::load_embedded_bundle(&cache, distribution_context)
-                .await
-                .map_err(StartupError::DataUnavailable)?
-        }
-    };
+    let bundle: Bundle = open_first_paint_bundle(&cache, distribution_context).await?;
 
     log::info!(
         "first paint bundle opened; [version_label={} distribution_context={:?} periods={:?}]",
