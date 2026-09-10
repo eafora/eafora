@@ -5,6 +5,7 @@ pub mod discovery;
 pub mod geometry;
 pub mod manifest;
 pub mod schema_version;
+pub mod version_rank;
 
 pub use bundle::*;
 pub use cache::*;
@@ -13,3 +14,4 @@ pub use discovery::*;
 pub use geometry::*;
 pub use manifest::*;
 pub use schema_version::*;
+pub use version_rank::*;

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use shared::artifact::{self, manifest, ArtifactCache, Bundle, DiscoveryDocument, Manifest, ManifestEntry};
+use shared::artifact::{self, manifest, version_rank, ArtifactCache, AuthoritativeBase, Bundle,
+    CachedVersionRank, DiscoveryDocument, Manifest, ManifestEntry};
 use shared::filesystem;
 use shared::http::{HttpCacheMode, HttpMethod, HttpRequest};
 use shared::license::DistributionContext;
@@ -12,8 +13,7 @@ use tokio::sync::{AcquireError, Semaphore, SemaphorePermit};
 
 use crate::client::cache::OpfsArtifactCache;
 use crate::client::fetch;
-use crate::live_resolve::{self, AuthoritativeBase};
-use crate::version_rank::{self, CachedVersionRank};
+use crate::live_resolve;
 
 const EMBEDDED_BASE_URL: &str = "/embedded_artifacts";
 const LIVE_FETCH_PARALLELISM: usize = 6;
@@ -192,7 +192,7 @@ async fn resolve_repository(static_base: &str) -> Result<ResolvedRepository, App
             log::warn!("discovery unavailable, falling back to the static repository base; [error={error}]")
         });
     let authoritative_base: AuthoritativeBase =
-        live_resolve::authoritative_repository_base(static_base, parsed_discovery);
+        artifact::authoritative_repository_base(static_base, parsed_discovery);
 
     match authoritative_base {
         AuthoritativeBase::Static => {

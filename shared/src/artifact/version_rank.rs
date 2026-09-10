@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 
-use shared::artifact::manifest::BundleVariant;
-use shared::artifact::Manifest;
+use crate::artifact::manifest::BundleVariant;
+use crate::artifact::Manifest;
 
 /// Sort key for a cached version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -23,7 +23,7 @@ pub fn rank_cached_version(manifest: Option<&Manifest>) -> CachedVersionRank {
 mod tests {
     use std::collections::BTreeMap;
 
-    use shared::artifact::manifest::{self, ManifestEntry};
+    use crate::artifact::manifest::{self, ManifestEntry};
 
     use super::*;
 
