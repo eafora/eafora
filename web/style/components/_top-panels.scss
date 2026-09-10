@@ -53,22 +53,18 @@
     }
 
     /* Each panel's swap control, out of flow so it adds no height, and anchored to the sheet's top so it holds
-       still whatever the panel beneath it does. The figure's sits under its expand control; the controls panel
-       has no second control, so its own takes the corner. */
+       still whatever the panel beneath it does. Both take the same corner, so the control a reader swaps with
+       does not move when the panel under it changes. */
     .controls-swap,
     .detail-panel-swap {
         display: block;
         position: absolute;
+        top: var(--space-md);
         right: var(--space-md);
     }
 
-    .controls-swap {
-        top: var(--space-md);
-    }
-
-    // Beside the expand control rather than under it, so the two occupy one band instead of two.
-    .detail-panel-swap {
-        top: var(--space-md);
+    // Inboard of the swap control, which holds the corner, and beside it rather than under it.
+    .top-panels > .detail-panel .detail-panel-expand {
         right: calc(var(--space-md) + var(--size-button-icon) + var(--space-xs));
     }
 
